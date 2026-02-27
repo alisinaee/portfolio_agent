@@ -12,19 +12,50 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const scheme = ColorScheme.dark(
+      primary: Color(0xFFFFFFFF),
+      onPrimary: Color(0xFF0A0A0A),
+      surface: Color(0xFF0A0A0A),
+      onSurface: Color(0xFFF5F5F5),
+      outline: Color(0xFF4B4B4B),
+      secondary: Color(0xFFEDEDED),
+    );
+
+    final baseTextTheme = GoogleFonts.spaceGroteskTextTheme(
+      ThemeData.dark(useMaterial3: true).textTheme,
+    ).apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
+
     return MaterialApp(
-      title: 'Kinetic Portfolio',
+      title: 'Ali Sinaee Portfolio',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.white,
-          surface: Colors.black,
-        ),
-        scaffoldBackgroundColor: Colors.black,
-        textTheme: GoogleFonts.playfairDisplayTextTheme(
-          ThemeData.dark().textTheme,
-        ),
         useMaterial3: true,
+        colorScheme: scheme,
+        scaffoldBackgroundColor: scheme.surface,
+        textTheme: baseTextTheme.copyWith(
+          labelLarge: GoogleFonts.spaceMono(
+            textStyle: baseTextTheme.labelLarge,
+          ),
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: scheme.surface,
+          foregroundColor: scheme.onSurface,
+          elevation: 0,
+          centerTitle: false,
+          scrolledUnderElevation: 0,
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: scheme.onSurface,
+            shape: const RoundedRectangleBorder(),
+            side: BorderSide(color: scheme.outline, width: 1),
+            textStyle: GoogleFonts.spaceMono(
+              textStyle: const TextStyle(fontSize: 13, letterSpacing: 0.4),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            minimumSize: const Size(0, 40),
+          ),
+        ),
       ),
       home: const PortfolioApp(),
     );

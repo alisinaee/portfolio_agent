@@ -3,20 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class ScrollingTextRow extends StatefulWidget {
-  final String text;
-  final double fontSize;
-  final bool moveLeft;
-  final bool isDimmed;
-  final double speedPixelsPerSecond;
-
   const ScrollingTextRow({
     super.key,
     required this.text,
     required this.fontSize,
     this.moveLeft = true,
     this.isDimmed = false,
+    this.dimOpacity = 0.15,
     this.speedPixelsPerSecond = 100.0,
   });
+
+  final String text;
+  final double fontSize;
+  final bool moveLeft;
+  final bool isDimmed;
+  final double dimOpacity;
+  final double speedPixelsPerSecond;
 
   @override
   State<ScrollingTextRow> createState() => _ScrollingTextRowState();
@@ -38,6 +40,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
       duration: const Duration(seconds: 4),
     );
     _updateTextMetrics();
+    _controller.repeat();
   }
 
   @override
@@ -54,7 +57,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     return TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.w900,
-      letterSpacing: 8.0,
+      letterSpacing: 8,
       color: Colors.white,
     );
   }
@@ -64,7 +67,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     final style = TextStyle(
       fontSize: widget.fontSize,
       fontWeight: FontWeight.w900,
-      letterSpacing: 8.0,
+      letterSpacing: 8,
     );
 
     final textPainter = TextPainter(
@@ -78,7 +81,6 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     final millis = (_segmentWidth / widget.speedPixelsPerSecond * 1000).round();
     _controller.duration = Duration(milliseconds: math.max(300, millis));
     _cachedRepeatCount = 0;
-    _controller.repeat();
   }
 
   String _buildMarqueeText(double viewportWidth) {
@@ -105,14 +107,14 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     final textStyle = _textStyle(widget.fontSize);
 
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 600),
-      opacity: widget.isDimmed ? 0.15 : 1.0,
+      duration: const Duration(milliseconds: 800),
+      opacity: widget.isDimmed ? widget.dimOpacity : 1.0,
       child: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.white, width: 1.0)),
+          border: Border(bottom: BorderSide(color: Colors.white, width: 1)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 24.0),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final viewportWidth = constraints.maxWidth.isFinite
@@ -134,8 +136,8 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
                 },
                 child: RepaintBoundary(
                   child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeOutQuint,
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeInOutCubic,
                     style: textStyle,
                     child: Text(
                       marqueeText,
