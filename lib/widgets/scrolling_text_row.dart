@@ -1,24 +1,31 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
 class ScrollingTextRow extends StatefulWidget {
   const ScrollingTextRow({
     super.key,
-    required this.text,
+    required this.primaryText,
     required this.fontSize,
+    this.secondaryText,
+    this.textBlend = 0,
     this.moveLeft = true,
     this.isDimmed = false,
     this.dimOpacity = 0.15,
-    this.speedPixelsPerSecond = 100.0,
+    this.speedPixelsPerSecond = 52.0,
+    this.isStatic = false,
   });
 
-  final String text;
+  final String primaryText;
+  final String? secondaryText;
+  final double textBlend;
   final double fontSize;
   final bool moveLeft;
   final bool isDimmed;
   final double dimOpacity;
   final double speedPixelsPerSecond;
+  final bool isStatic;
 
   @override
   State<ScrollingTextRow> createState() => _ScrollingTextRowState();
@@ -27,10 +34,18 @@ class ScrollingTextRow extends StatefulWidget {
 class _ScrollingTextRowState extends State<ScrollingTextRow>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  double _segmentWidth = 1.0;
-  String _segmentText = '';
-  String _marqueeText = '';
-  int _cachedRepeatCount = 0;
+
+  double _primarySegmentWidth = 1.0;
+  double _secondarySegmentWidth = 1.0;
+
+  String _primarySegmentText = '';
+  String _secondarySegmentText = '';
+
+  String _primaryMarqueeText = '';
+  String _secondaryMarqueeText = '';
+
+  int _primaryCachedRepeatCount = 0;
+  int _secondaryCachedRepeatCount = 0;
 
   @override
   void initState() {
@@ -40,60 +55,195 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
       duration: const Duration(seconds: 4),
     );
     _updateTextMetrics();
-    _controller.repeat();
+    _syncAnimationState();
   }
 
   @override
   void didUpdateWidget(ScrollingTextRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text ||
+
+    if (oldWidget.primaryText != widget.primaryText ||
+        oldWidget.secondaryText != widget.secondaryText ||
         oldWidget.fontSize != widget.fontSize ||
-        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond) {
+        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond ||
+        oldWidget.textBlend != widget.textBlend) {
       _updateTextMetrics();
+    }
+
+    if (oldWidget.isStatic != widget.isStatic) {
+      _syncAnimationState();
     }
   }
 
-  TextStyle _textStyle(double fontSize) {
+  TextStyle _textStyle() {
     return TextStyle(
-      fontSize: fontSize,
+      fontSize: widget.fontSize,
       fontWeight: FontWeight.w900,
       letterSpacing: 8,
       color: Colors.white,
     );
   }
 
-  void _updateTextMetrics() {
-    _segmentText = '${widget.text}   •   ';
-    final style = TextStyle(
-      fontSize: widget.fontSize,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 8,
-    );
-
+  double _measureSegmentWidth(String text, TextStyle style) {
     final textPainter = TextPainter(
-      text: TextSpan(text: _segmentText, style: style),
+      text: TextSpan(text: text, style: style),
       maxLines: 1,
       textDirection: TextDirection.ltr,
     )..layout();
 
-    _segmentWidth = math.max(1.0, textPainter.size.width);
-
-    final millis = (_segmentWidth / widget.speedPixelsPerSecond * 1000).round();
-    _controller.duration = Duration(milliseconds: math.max(300, millis));
-    _cachedRepeatCount = 0;
+    return math.max(1.0, textPainter.size.width);
   }
 
-  String _buildMarqueeText(double viewportWidth) {
-    final repeatCount = math.max(
-      2,
-      ((viewportWidth + _segmentWidth) / _segmentWidth).ceil() + 1,
+  void _syncAnimationState() {
+    if (widget.isStatic) {
+      if (_controller.isAnimating) {
+        _controller.stop(canceled: false);
+      }
+      return;
+    }
+
+    if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  void _updateTextMetrics() {
+    final style = _textStyle();
+
+    final primarySegment = '${widget.primaryText}   •   ';
+    final secondaryRaw = widget.secondaryText;
+    final secondarySegment = secondaryRaw == null ? '' : '$secondaryRaw   •   ';
+
+    final primaryWidth = _measureSegmentWidth(primarySegment, style);
+    final secondaryWidth = secondaryRaw == null
+        ? primaryWidth
+        : _measureSegmentWidth(secondarySegment, style);
+
+    final activeWidth = _activeSegmentWidth(
+      primaryWidth: primaryWidth,
+      secondaryWidth: secondaryWidth,
     );
 
-    if (repeatCount != _cachedRepeatCount) {
-      _cachedRepeatCount = repeatCount;
-      _marqueeText = List.filled(repeatCount, _segmentText).join();
+    final millis =
+        (activeWidth / widget.speedPixelsPerSecond.clamp(1, 1000) * 1000)
+            .round();
+    final duration = Duration(milliseconds: math.max(450, millis));
+
+    _primarySegmentText = primarySegment;
+    _secondarySegmentText = secondarySegment;
+    _primarySegmentWidth = primaryWidth;
+    _secondarySegmentWidth = secondaryWidth;
+
+    _primaryCachedRepeatCount = 0;
+    _secondaryCachedRepeatCount = 0;
+
+    if (_controller.duration != duration) {
+      _controller.duration = duration;
     }
-    return _marqueeText;
+  }
+
+  double _activeSegmentWidth({
+    required double primaryWidth,
+    required double secondaryWidth,
+  }) {
+    final blend = widget.secondaryText == null
+        ? 0.0
+        : widget.textBlend.clamp(0.0, 1.0);
+
+    return lerpDouble(primaryWidth, secondaryWidth, blend) ?? primaryWidth;
+  }
+
+  String _buildPrimaryMarqueeText(double viewportWidth) {
+    final repeatCount = math.max(
+      2,
+      ((viewportWidth + _primarySegmentWidth) / _primarySegmentWidth).ceil() +
+          1,
+    );
+
+    if (repeatCount != _primaryCachedRepeatCount) {
+      _primaryCachedRepeatCount = repeatCount;
+      _primaryMarqueeText = List.filled(
+        repeatCount,
+        _primarySegmentText,
+      ).join();
+    }
+
+    return _primaryMarqueeText;
+  }
+
+  String _buildSecondaryMarqueeText(double viewportWidth) {
+    if (widget.secondaryText == null) {
+      return '';
+    }
+
+    final repeatCount = math.max(
+      2,
+      ((viewportWidth + _secondarySegmentWidth) / _secondarySegmentWidth)
+              .ceil() +
+          1,
+    );
+
+    if (repeatCount != _secondaryCachedRepeatCount) {
+      _secondaryCachedRepeatCount = repeatCount;
+      _secondaryMarqueeText = List.filled(
+        repeatCount,
+        _secondarySegmentText,
+      ).join();
+    }
+
+    return _secondaryMarqueeText;
+  }
+
+  Widget _buildBlendedText({
+    required TextStyle style,
+    required String primary,
+    required String secondary,
+    required double blend,
+  }) {
+    if (widget.secondaryText == null || blend <= 0.0) {
+      return Text(
+        primary,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.visible,
+        style: style,
+      );
+    }
+
+    if (blend >= 1.0) {
+      return Text(
+        secondary,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.visible,
+        style: style,
+      );
+    }
+
+    return Stack(
+      children: [
+        Opacity(
+          opacity: 1.0 - blend,
+          child: Text(
+            primary,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        ),
+        Opacity(
+          opacity: blend,
+          child: Text(
+            secondary,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -104,11 +254,16 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
 
   @override
   Widget build(BuildContext context) {
-    final textStyle = _textStyle(widget.fontSize);
+    final style = _textStyle();
+    final textBlend = widget.secondaryText == null
+        ? 0.0
+        : widget.textBlend.clamp(0.0, 1.0);
+    final rowOpacity = widget.isDimmed
+        ? widget.dimOpacity.clamp(0.0, 1.0)
+        : 1.0;
 
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 800),
-      opacity: widget.isDimmed ? widget.dimOpacity : 1.0,
+    return Opacity(
+      opacity: rowOpacity,
       child: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
@@ -120,35 +275,38 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
             final viewportWidth = constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
-            final marqueeText = _buildMarqueeText(viewportWidth);
 
-            return ClipRect(
-              child: AnimatedBuilder(
+            final primaryMarquee = _buildPrimaryMarqueeText(viewportWidth);
+            final secondaryMarquee = _buildSecondaryMarqueeText(viewportWidth);
+            final activeSegmentWidth = _activeSegmentWidth(
+              primaryWidth: _primarySegmentWidth,
+              secondaryWidth: _secondarySegmentWidth,
+            );
+
+            Widget textLayer = _buildBlendedText(
+              style: style,
+              primary: primaryMarquee,
+              secondary: secondaryMarquee,
+              blend: textBlend,
+            );
+
+            if (!widget.isStatic) {
+              textLayer = AnimatedBuilder(
                 animation: _controller,
                 builder: (context, child) {
                   final offset = widget.moveLeft
-                      ? -(_controller.value * _segmentWidth)
-                      : ((_controller.value - 1) * _segmentWidth);
+                      ? -(_controller.value * activeSegmentWidth)
+                      : ((_controller.value - 1) * activeSegmentWidth);
                   return Transform.translate(
                     offset: Offset(offset, 0),
                     child: child,
                   );
                 },
-                child: RepaintBoundary(
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 800),
-                    curve: Curves.easeInOutCubic,
-                    style: textStyle,
-                    child: Text(
-                      marqueeText,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.visible,
-                    ),
-                  ),
-                ),
-              ),
-            );
+                child: textLayer,
+              );
+            }
+
+            return ClipRect(child: RepaintBoundary(child: textLayer));
           },
         ),
       ),

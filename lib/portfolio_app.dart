@@ -17,14 +17,16 @@ class PortfolioApp extends StatefulWidget {
   State<PortfolioApp> createState() => _PortfolioAppState();
 }
 
-class _PortfolioAppState extends State<PortfolioApp> {
+class _PortfolioAppState extends State<PortfolioApp>
+    with SingleTickerProviderStateMixin {
   _PortfolioMode _mode = _PortfolioMode.animated;
-  bool _isAnimatedMenuOpen = false;
-  bool _isAnimatedMenuTextVisible = false;
-  bool _isAnimatedMenuTransitioning = false;
   bool _isFlatMenuOpen = false;
 
+  late final AnimationController _menuMorphController;
+  late final Animation<double> _menuMorphCurve;
+
   PortfolioSectionId? _animatedActiveSection;
+  PortfolioSectionId? _pendingAnimatedSection;
   int? _animatedExpandedExperienceIndex;
 
   List<String> get _landingTexts => [
@@ -60,6 +62,41 @@ class _PortfolioAppState extends State<PortfolioApp> {
     'CONTACT': PortfolioSectionId.contact,
   };
 
+  @override
+  void initState() {
+    super.initState();
+    _menuMorphController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    _menuMorphCurve = CurvedAnimation(
+      parent: _menuMorphController,
+      curve: Curves.easeInOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
+    );
+    _menuMorphController.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed &&
+          _pendingAnimatedSection != null &&
+          mounted) {
+        setState(() {
+          _animatedActiveSection = _pendingAnimatedSection;
+          _animatedExpandedExperienceIndex = null;
+          _pendingAnimatedSection = null;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _menuMorphController.dispose();
+    super.dispose();
+  }
+
+  double get _menuProgress => _menuMorphCurve.value;
+  bool get _isAnimatedMenuOpen => _menuMorphController.value > 0.001;
+  bool get _isAnimatedMenuInteractive => _menuProgress >= 0.75;
+
   void _setMode(_PortfolioMode mode) {
     if (_mode == mode) {
       return;
@@ -67,54 +104,12 @@ class _PortfolioAppState extends State<PortfolioApp> {
 
     setState(() {
       _mode = mode;
-      _isAnimatedMenuOpen = false;
-      _isAnimatedMenuTextVisible = false;
-      _isAnimatedMenuTransitioning = false;
       _isFlatMenuOpen = false;
       _animatedActiveSection = null;
+      _pendingAnimatedSection = null;
       _animatedExpandedExperienceIndex = null;
     });
-  }
-
-  Future<void> _setAnimatedMenuOpen(bool open) async {
-    if (_isAnimatedMenuTransitioning || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _isAnimatedMenuTransitioning = true;
-    });
-
-    if (open) {
-      setState(() {
-        _isAnimatedMenuOpen = true;
-      });
-
-      await Future<void>.delayed(const Duration(milliseconds: 240));
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isAnimatedMenuTextVisible = true;
-        _isAnimatedMenuTransitioning = false;
-      });
-      return;
-    }
-
-    setState(() {
-      _isAnimatedMenuTextVisible = false;
-    });
-
-    await Future<void>.delayed(const Duration(milliseconds: 240));
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isAnimatedMenuOpen = false;
-      _isAnimatedMenuTransitioning = false;
-    });
+    _menuMorphController.value = 0;
   }
 
   Future<void> _toggleHamburger() async {
@@ -125,12 +120,37 @@ class _PortfolioAppState extends State<PortfolioApp> {
       return;
     }
 
-    await _setAnimatedMenuOpen(!_isAnimatedMenuOpen);
+    if (_menuMorphController.isAnimating) {
+      return;
+    }
+
+    if (_isAnimatedMenuOpen) {
+      _pendingAnimatedSection = null;
+      await _menuMorphController.reverse();
+      return;
+    }
+
+    if (_animatedActiveSection != null) {
+      setState(() {
+        _animatedActiveSection = null;
+        _animatedExpandedExperienceIndex = null;
+      });
+    }
+
+    await _menuMorphController.forward();
   }
 
   Future<void> _openAnimatedSectionFromMenu(String label) async {
+    if (!_isAnimatedMenuInteractive) {
+      return;
+    }
+
     if (label == 'CLOSE') {
-      await _setAnimatedMenuOpen(false);
+      _pendingAnimatedSection = null;
+      if (_menuMorphController.isAnimating) {
+        return;
+      }
+      await _menuMorphController.reverse();
       return;
     }
 
@@ -139,20 +159,13 @@ class _PortfolioAppState extends State<PortfolioApp> {
       return;
     }
 
-    await _setAnimatedMenuOpen(false);
-    if (!mounted) {
+    _pendingAnimatedSection = section;
+
+    if (_menuMorphController.isAnimating) {
       return;
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _animatedActiveSection = section;
-      _animatedExpandedExperienceIndex = null;
-    });
+    await _menuMorphController.reverse();
   }
 
   void _closeAnimatedSectionOverlay() {
@@ -261,14 +274,23 @@ class _PortfolioAppState extends State<PortfolioApp> {
             child: const Text('FALT VERSION'),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            key: const Key('hamburger_menu_button'),
-            iconSize: 34,
-            icon: Icon(
-              isMenuOpen ? Icons.close : Icons.menu,
-              color: Colors.white,
-            ),
-            onPressed: _toggleHamburger,
+          AnimatedBuilder(
+            animation: _menuMorphController,
+            builder: (context, child) {
+              final animatedMenuOpen =
+                  _mode == _PortfolioMode.animated && _isAnimatedMenuOpen;
+              return IconButton(
+                key: const Key('hamburger_menu_button'),
+                iconSize: 34,
+                icon: Icon(
+                  isFlat
+                      ? (isMenuOpen ? Icons.close : Icons.menu)
+                      : (animatedMenuOpen ? Icons.close : Icons.menu),
+                  color: Colors.white,
+                ),
+                onPressed: _toggleHamburger,
+              );
+            },
           ),
         ],
       ),
@@ -291,92 +313,102 @@ class _PortfolioAppState extends State<PortfolioApp> {
     final theme = Theme.of(context);
     final isBackgroundMode = _animatedActiveSection != null;
 
-    return LayoutBuilder(
-      key: const Key('animated_mode_content'),
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Center(
-                child: Transform.rotate(
-                  angle: -15 * 3.1415926535 / 180,
-                  child: OverflowBox(
-                    maxWidth: constraints.maxWidth * 2 + 1000,
-                    maxHeight: double.infinity,
-                    child: KineticLandingView(
-                      isMenuOpen: _isAnimatedMenuOpen,
-                      showMenuText: _isAnimatedMenuTextVisible,
-                      isBackgroundMode: isBackgroundMode,
-                      landingTexts: _landingTexts,
-                      menuItems: _animatedMenuItems,
-                      onMenuItemTap: _openAnimatedSectionFromMenu,
+    return AnimatedBuilder(
+      animation: _menuMorphController,
+      builder: (context, _) {
+        return LayoutBuilder(
+          key: const Key('animated_mode_content'),
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Transform.rotate(
+                      angle: -15 * 3.1415926535 / 180,
+                      child: OverflowBox(
+                        maxWidth: constraints.maxWidth * 2 + 1000,
+                        maxHeight: double.infinity,
+                        child: KineticLandingView(
+                          menuProgress: _menuProgress,
+                          isMenuInteractive:
+                              _isAnimatedMenuInteractive && !isBackgroundMode,
+                          isBackgroundMode: isBackgroundMode,
+                          landingTexts: _landingTexts,
+                          menuItems: _animatedMenuItems,
+                          onMenuItemTap: _openAnimatedSectionFromMenu,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            if (_animatedActiveSection != null)
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: 1020,
-                        maxHeight: constraints.maxHeight - 32,
-                      ),
-                      child: Container(
-                        key: Key(
-                          'animated_section_panel_${_animatedActiveSection!.name}',
-                        ),
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface.withValues(
-                            alpha: 0.9,
+                if (_animatedActiveSection != null)
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: 1020,
+                            maxHeight: constraints.maxHeight - 32,
                           ),
-                          border: Border.all(
-                            color: theme.colorScheme.outline,
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                          child: Container(
+                            key: Key(
+                              'animated_section_panel_${_animatedActiveSection!.name}',
+                            ),
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface.withValues(
+                                alpha: 0.9,
+                              ),
+                              border: Border.all(
+                                color: theme.colorScheme.outline,
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    _animatedSectionTitle(
-                                      _animatedActiveSection!,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _animatedSectionTitle(
+                                          _animatedActiveSection!,
+                                        ),
+                                        style: theme.textTheme.headlineSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
                                     ),
-                                    style: theme.textTheme.headlineSmall
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
+                                    OutlinedButton(
+                                      key: const Key(
+                                        'animated_section_close_button',
+                                      ),
+                                      onPressed: _closeAnimatedSectionOverlay,
+                                      child: const Text('CLOSE'),
+                                    ),
+                                  ],
                                 ),
-                                OutlinedButton(
-                                  key: const Key(
-                                    'animated_section_close_button',
+                                const SizedBox(height: 14),
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    child: _buildAnimatedSectionContent(
+                                      context,
+                                    ),
                                   ),
-                                  onPressed: _closeAnimatedSectionOverlay,
-                                  child: const Text('CLOSE'),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: _buildAnimatedSectionContent(context),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         );
       },
     );

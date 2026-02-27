@@ -14,8 +14,12 @@ void _pressOutlinedButtonByKey(WidgetTester tester, String key) {
 }
 
 Future<void> _openAnimatedMenuItem(WidgetTester tester, int menuIndex) async {
-  _pressIconButtonByKey(tester, 'hamburger_menu_button');
-  await tester.pump(const Duration(milliseconds: 700));
+  await tester.tap(
+    find.byKey(const Key('hamburger_menu_button')),
+    warnIfMissed: false,
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 800));
 
   final menuItem = tester.widget<GestureDetector>(
     find.byKey(Key('animated_menu_item_$menuIndex')),
@@ -59,9 +63,9 @@ void main() {
     expect(find.textContaining('EXPERIENCE'), findsNothing);
 
     _pressIconButtonByKey(tester, 'hamburger_menu_button');
-    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
 
-    expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.textContaining('EXPERIENCE'), findsWidgets);
     expect(find.byKey(const Key('animated_menu_item_0')), findsOneWidget);
     expect(find.byKey(const Key('animated_menu_item_4')), findsOneWidget);
