@@ -34,7 +34,7 @@ class KineticLandingView extends StatelessWidget {
 
     final normalizedMenuProgress = menuProgress.clamp(0.0, 1.0);
     final sizeProgress = (normalizedMenuProgress / 0.55).clamp(0.0, 1.0);
-    final textBlend = ((normalizedMenuProgress - 0.35) / 0.65).clamp(0.0, 1.0);
+    final textBlend = ((normalizedMenuProgress - 0.62) / 0.38).clamp(0.0, 1.0);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -51,17 +51,21 @@ class KineticLandingView extends StatelessWidget {
         final isBigger = index % 2 != 0;
         final baseFontSize = isBigger ? 50.0 : 25.0;
         final targetMenuFontSize = 70.0;
-        final fontSize = isCenterRow
-            ? lerpDouble(baseFontSize, targetMenuFontSize, sizeProgress)!
-            : baseFontSize;
+        final textScale = isCenterRow
+            ? lerpDouble(1.0, targetMenuFontSize / baseFontSize, sizeProgress)!
+            : 1.0;
 
+        final dimProgress = ((normalizedMenuProgress - 0.02) / 0.2).clamp(
+          0.0,
+          1.0,
+        );
         final shouldDimOuterRows =
-            !isBackgroundMode && normalizedMenuProgress > 0;
+            !isBackgroundMode && normalizedMenuProgress > 0.02;
         final isDimmed =
             isBackgroundMode || (shouldDimOuterRows && !isCenterRow);
         final dimOpacity = isBackgroundMode
             ? 0.08
-            : lerpDouble(1.0, 0.18, normalizedMenuProgress)!;
+            : lerpDouble(1.0, 0.18, dimProgress)!;
 
         final row = TickerMode(
           enabled: true,
@@ -69,11 +73,12 @@ class KineticLandingView extends StatelessWidget {
             primaryText: safeLandingTexts[index],
             secondaryText: menuText,
             textBlend: isCenterRow ? textBlend : 0,
-            fontSize: fontSize,
+            fontSize: baseFontSize,
+            textScale: textScale,
             moveLeft: index % 2 == 0,
             isDimmed: isDimmed,
             dimOpacity: dimOpacity,
-            speedPixelsPerSecond: 52,
+            speedPixelsPerSecond: 45,
             isStatic: index == 0 || index == rowCount - 1,
           ),
         );

@@ -313,22 +313,22 @@ class _PortfolioAppState extends State<PortfolioApp>
     final theme = Theme.of(context);
     final isBackgroundMode = _animatedActiveSection != null;
 
-    return AnimatedBuilder(
-      animation: _menuMorphController,
-      builder: (context, _) {
-        return LayoutBuilder(
-          key: const Key('animated_mode_content'),
-          builder: (context, constraints) {
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: Center(
-                    child: Transform.rotate(
-                      angle: -15 * 3.1415926535 / 180,
-                      child: OverflowBox(
-                        maxWidth: constraints.maxWidth * 2 + 1000,
-                        maxHeight: double.infinity,
-                        child: KineticLandingView(
+    return LayoutBuilder(
+      key: const Key('animated_mode_content'),
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Center(
+                child: Transform.rotate(
+                  angle: -15 * 3.1415926535 / 180,
+                  child: OverflowBox(
+                    maxWidth: constraints.maxWidth * 2 + 1000,
+                    maxHeight: double.infinity,
+                    child: AnimatedBuilder(
+                      animation: _menuMorphController,
+                      builder: (context, _) {
+                        return KineticLandingView(
                           menuProgress: _menuProgress,
                           isMenuInteractive:
                               _isAnimatedMenuInteractive && !isBackgroundMode,
@@ -336,79 +336,75 @@ class _PortfolioAppState extends State<PortfolioApp>
                           landingTexts: _landingTexts,
                           menuItems: _animatedMenuItems,
                           onMenuItemTap: _openAnimatedSectionFromMenu,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_animatedActiveSection != null)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 1020,
+                        maxHeight: constraints.maxHeight - 32,
+                      ),
+                      child: Container(
+                        key: Key(
+                          'animated_section_panel_${_animatedActiveSection!.name}',
+                        ),
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface.withValues(
+                            alpha: 0.9,
+                          ),
+                          border: Border.all(
+                            color: theme.colorScheme.outline,
+                            width: 1,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _animatedSectionTitle(
+                                      _animatedActiveSection!,
+                                    ),
+                                    style: theme.textTheme.headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                OutlinedButton(
+                                  key: const Key(
+                                    'animated_section_close_button',
+                                  ),
+                                  onPressed: _closeAnimatedSectionOverlay,
+                                  child: const Text('CLOSE'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                child: _buildAnimatedSectionContent(context),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
-                if (_animatedActiveSection != null)
-                  Positioned.fill(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: 1020,
-                            maxHeight: constraints.maxHeight - 32,
-                          ),
-                          child: Container(
-                            key: Key(
-                              'animated_section_panel_${_animatedActiveSection!.name}',
-                            ),
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface.withValues(
-                                alpha: 0.9,
-                              ),
-                              border: Border.all(
-                                color: theme.colorScheme.outline,
-                                width: 1,
-                              ),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        _animatedSectionTitle(
-                                          _animatedActiveSection!,
-                                        ),
-                                        style: theme.textTheme.headlineSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ),
-                                    OutlinedButton(
-                                      key: const Key(
-                                        'animated_section_close_button',
-                                      ),
-                                      onPressed: _closeAnimatedSectionOverlay,
-                                      child: const Text('CLOSE'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    child: _buildAnimatedSectionContent(
-                                      context,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
+              ),
+          ],
         );
       },
     );

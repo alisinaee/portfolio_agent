@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
@@ -15,6 +14,7 @@ class ScrollingTextRow extends StatefulWidget {
     this.dimOpacity = 0.15,
     this.speedPixelsPerSecond = 52.0,
     this.isStatic = false,
+    this.textScale = 1.0,
   });
 
   final String primaryText;
@@ -26,6 +26,7 @@ class ScrollingTextRow extends StatefulWidget {
   final double dimOpacity;
   final double speedPixelsPerSecond;
   final bool isStatic;
+  final double textScale;
 
   @override
   State<ScrollingTextRow> createState() => _ScrollingTextRowState();
@@ -65,8 +66,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     if (oldWidget.primaryText != widget.primaryText ||
         oldWidget.secondaryText != widget.secondaryText ||
         oldWidget.fontSize != widget.fontSize ||
-        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond ||
-        oldWidget.textBlend != widget.textBlend) {
+        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond) {
       _updateTextMetrics();
     }
 
@@ -146,18 +146,13 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     required double primaryWidth,
     required double secondaryWidth,
   }) {
-    final blend = widget.secondaryText == null
-        ? 0.0
-        : widget.textBlend.clamp(0.0, 1.0);
-
-    return lerpDouble(primaryWidth, secondaryWidth, blend) ?? primaryWidth;
+    return math.max(primaryWidth, secondaryWidth);
   }
 
-  String _buildPrimaryMarqueeText(double viewportWidth) {
+  String _buildPrimaryMarqueeText(double viewportWidth, double segmentWidth) {
     final repeatCount = math.max(
       2,
-      ((viewportWidth + _primarySegmentWidth) / _primarySegmentWidth).ceil() +
-          1,
+      ((viewportWidth + segmentWidth) / segmentWidth).ceil() + 1,
     );
 
     if (repeatCount != _primaryCachedRepeatCount) {
@@ -171,16 +166,14 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     return _primaryMarqueeText;
   }
 
-  String _buildSecondaryMarqueeText(double viewportWidth) {
+  String _buildSecondaryMarqueeText(double viewportWidth, double segmentWidth) {
     if (widget.secondaryText == null) {
       return '';
     }
 
     final repeatCount = math.max(
       2,
-      ((viewportWidth + _secondarySegmentWidth) / _secondarySegmentWidth)
-              .ceil() +
-          1,
+      ((viewportWidth + segmentWidth) / segmentWidth).ceil() + 1,
     );
 
     if (repeatCount != _secondaryCachedRepeatCount) {
@@ -258,6 +251,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     final textBlend = widget.secondaryText == null
         ? 0.0
         : widget.textBlend.clamp(0.0, 1.0);
+    final textScale = widget.textScale.clamp(0.25, 4.0);
     final rowOpacity = widget.isDimmed
         ? widget.dimOpacity.clamp(0.0, 1.0)
         : 1.0;
@@ -276,11 +270,23 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
 
-            final primaryMarquee = _buildPrimaryMarqueeText(viewportWidth);
-            final secondaryMarquee = _buildSecondaryMarqueeText(viewportWidth);
+            final scaledPrimarySegmentWidth = _primarySegmentWidth * textScale;
+            final scaledSecondarySegmentWidth =
+                _secondarySegmentWidth * textScale;
+            final primaryMarquee = _buildPrimaryMarqueeText(
+              viewportWidth,
+              scaledPrimarySegmentWidth,
+            );
+            final secondaryMarquee =
+                textBlend <= 0 || widget.secondaryText == null
+                ? ''
+                : _buildSecondaryMarqueeText(
+                    viewportWidth,
+                    scaledSecondarySegmentWidth,
+                  );
             final activeSegmentWidth = _activeSegmentWidth(
-              primaryWidth: _primarySegmentWidth,
-              secondaryWidth: _secondarySegmentWidth,
+              primaryWidth: scaledPrimarySegmentWidth,
+              secondaryWidth: scaledSecondarySegmentWidth,
             );
 
             Widget textLayer = _buildBlendedText(
@@ -289,6 +295,14 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
               secondary: secondaryMarquee,
               blend: textBlend,
             );
+
+            if (textScale != 1.0) {
+              textLayer = Transform.scale(
+                scale: textScale,
+                alignment: Alignment.centerLeft,
+                child: textLayer,
+              );
+            }
 
             if (!widget.isStatic) {
               textLayer = AnimatedBuilder(
