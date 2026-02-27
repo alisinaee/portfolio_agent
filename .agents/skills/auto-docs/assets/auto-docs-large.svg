@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" fill="none">
+  <rect width="1280" height="400" rx="32" fill="#0B1214"/>
+
+  <g transform="translate(56 42)">
+    <rect width="316" height="316" rx="44" fill="#0E1A1D"/>
+    <path d="M92 42h108l50 50v180H92V42Z" fill="#102126" stroke="#9BE7D3" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M200 42v50h50" stroke="#9BE7D3" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M116 126h100M116 154h82" stroke="#5FB8A0" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="162" cy="226" r="40" fill="#0D171A" stroke="#1F8A70" stroke-width="8"/>
+    <path d="M182 222a22 22 0 1 0-9 17" stroke="#9BE7D3" stroke-width="7" stroke-linecap="round"/>
+    <path d="m178 200 7 7-7 7" stroke="#9BE7D3" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m148 226 10 10 17-19" stroke="#E8FFFA" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="430" y="183" fill="#E8FFFA" font-size="116" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" font-weight="700" letter-spacing="1.2">Auto Docs</text>
+  <text x="434" y="244" fill="#9BE7D3" font-size="38" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" font-weight="500">Concise change memory for AI agents</text>
+</svg>

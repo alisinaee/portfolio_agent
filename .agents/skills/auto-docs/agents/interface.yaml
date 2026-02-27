@@ -1,0 +1,7 @@
+interface:
+  display_name: "Auto Docs"
+  short_description: "Maintain concise AI docs after repo file changes"
+  icon_small: "./assets/auto-docs-small.png"
+  icon_large: "./assets/auto-docs-large.png"
+  brand_color: "#1F8A70"
+  default_prompt: "Use $auto-docs to update docs/agent-rules.md after code edits in this repository."
