@@ -1,6 +1,6 @@
-# stich
+# portfolio
 
-A new Flutter project.
+A Flutter portfolio project.
 
 ## Getting Started
 
