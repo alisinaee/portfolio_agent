@@ -2,6 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+enum RowMotionMode { marquee, staticHold }
+
+enum RowTextPresentationMode { marqueeBlend, centeredBlend }
+
 class ScrollingTextRow extends StatefulWidget {
   const ScrollingTextRow({
     super.key,
@@ -13,8 +17,11 @@ class ScrollingTextRow extends StatefulWidget {
     this.isDimmed = false,
     this.dimOpacity = 0.15,
     this.speedPixelsPerSecond = 52.0,
-    this.isStatic = false,
+    this.motionMode = RowMotionMode.marquee,
     this.textScale = 1.0,
+    this.verticalPadding = 24.0,
+    this.textPresentationMode = RowTextPresentationMode.marqueeBlend,
+    this.centeredHorizontalPadding = 16.0,
   });
 
   final String primaryText;
@@ -25,8 +32,11 @@ class ScrollingTextRow extends StatefulWidget {
   final bool isDimmed;
   final double dimOpacity;
   final double speedPixelsPerSecond;
-  final bool isStatic;
+  final RowMotionMode motionMode;
   final double textScale;
+  final double verticalPadding;
+  final RowTextPresentationMode textPresentationMode;
+  final double centeredHorizontalPadding;
 
   @override
   State<ScrollingTextRow> createState() => _ScrollingTextRowState();
@@ -66,11 +76,12 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     if (oldWidget.primaryText != widget.primaryText ||
         oldWidget.secondaryText != widget.secondaryText ||
         oldWidget.fontSize != widget.fontSize ||
-        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond) {
+        oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond ||
+        oldWidget.textPresentationMode != widget.textPresentationMode) {
       _updateTextMetrics();
     }
 
-    if (oldWidget.isStatic != widget.isStatic) {
+    if (oldWidget.motionMode != widget.motionMode) {
       _syncAnimationState();
     }
   }
@@ -95,7 +106,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
   }
 
   void _syncAnimationState() {
-    if (widget.isStatic) {
+    if (widget.motionMode == RowMotionMode.staticHold) {
       if (_controller.isAnimating) {
         _controller.stop(canceled: false);
       }
@@ -119,10 +130,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
         ? primaryWidth
         : _measureSegmentWidth(secondarySegment, style);
 
-    final activeWidth = _activeSegmentWidth(
-      primaryWidth: primaryWidth,
-      secondaryWidth: secondaryWidth,
-    );
+    final activeWidth = math.max(primaryWidth, secondaryWidth);
 
     final millis =
         (activeWidth / widget.speedPixelsPerSecond.clamp(1, 1000) * 1000)
@@ -140,13 +148,6 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     if (_controller.duration != duration) {
       _controller.duration = duration;
     }
-  }
-
-  double _activeSegmentWidth({
-    required double primaryWidth,
-    required double secondaryWidth,
-  }) {
-    return math.max(primaryWidth, secondaryWidth);
   }
 
   String _buildPrimaryMarqueeText(double viewportWidth, double segmentWidth) {
@@ -187,7 +188,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     return _secondaryMarqueeText;
   }
 
-  Widget _buildBlendedText({
+  Widget _buildMarqueeBlendText({
     required TextStyle style,
     required String primary,
     required String secondary,
@@ -239,6 +240,58 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     );
   }
 
+  Widget _buildCenteredLabel({required String text, required TextStyle style}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.centeredHorizontalPadding.clamp(0.0, 96.0),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Text(
+            text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: style,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenteredBlendText({
+    required TextStyle style,
+    required double blend,
+  }) {
+    final primary = widget.primaryText;
+    final secondary = widget.secondaryText ?? widget.primaryText;
+
+    if (blend <= 0.0 || widget.secondaryText == null) {
+      return _buildCenteredLabel(text: primary, style: style);
+    }
+
+    if (blend >= 1.0) {
+      return _buildCenteredLabel(text: secondary, style: style);
+    }
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(
+          opacity: 1.0 - blend,
+          child: _buildCenteredLabel(text: primary, style: style),
+        ),
+        Opacity(
+          opacity: blend,
+          child: _buildCenteredLabel(text: secondary, style: style),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -263,9 +316,24 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: Colors.white, width: 1)),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: EdgeInsets.symmetric(
+          vertical: widget.verticalPadding.clamp(8.0, 80.0),
+        ),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (widget.textPresentationMode ==
+                RowTextPresentationMode.centeredBlend) {
+              final centeredStyle = style.copyWith(
+                fontSize: (style.fontSize ?? 16) * textScale,
+                letterSpacing: ((style.letterSpacing ?? 8) * 0.55),
+              );
+              final centered = _buildCenteredBlendText(
+                style: centeredStyle,
+                blend: textBlend,
+              );
+              return ClipRect(child: RepaintBoundary(child: centered));
+            }
+
             final viewportWidth = constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : MediaQuery.sizeOf(context).width;
@@ -284,12 +352,12 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
                     viewportWidth,
                     scaledSecondarySegmentWidth,
                   );
-            final activeSegmentWidth = _activeSegmentWidth(
-              primaryWidth: scaledPrimarySegmentWidth,
-              secondaryWidth: scaledSecondarySegmentWidth,
+            final activeSegmentWidth = math.max(
+              scaledPrimarySegmentWidth,
+              scaledSecondarySegmentWidth,
             );
 
-            Widget textLayer = _buildBlendedText(
+            Widget textLayer = _buildMarqueeBlendText(
               style: style,
               primary: primaryMarquee,
               secondary: secondaryMarquee,
@@ -304,7 +372,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
               );
             }
 
-            if (!widget.isStatic) {
+            if (widget.motionMode == RowMotionMode.marquee) {
               textLayer = AnimatedBuilder(
                 animation: _controller,
                 builder: (context, child) {

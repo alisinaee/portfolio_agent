@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -29,30 +31,34 @@ class _PortfolioAppState extends State<PortfolioApp>
   PortfolioSectionId? _pendingAnimatedSection;
   int? _animatedExpandedExperienceIndex;
 
-  List<String> get _landingTexts => [
-    portfolioSnapshot.fullName.toUpperCase(),
-    portfolioSnapshot.headline.toUpperCase(),
-    portfolioSnapshot.location.toUpperCase(),
-    'DART • FLUTTER • CLEAN ARCHITECTURE',
-    'BLOC • GETX • PROVIDER • RIVERPOD',
-    'HOME PALETTE • AI DECOR & DESIGN',
-    'TOBANK • DIGITAL BANKING PLATFORM',
-    'DUSK VPN • MULTI PLATFORM',
-    'HAMKELASI • EDUCATIONAL SUPER APP',
-    'ABAN VPN • GLOBAL NETWORK',
-    'RADAR GPS • TRACKING & IOT',
-    '100K+ DOWNLOADS • MILLIONS OF USERS',
-    'GITHUB.COM/ALISINAEE',
-    'LINKEDIN.COM/IN/ALISINAEE',
-    'ALISINAIASL@GMAIL.COM',
-  ];
+  List<String> get _landingInfoSeed {
+    final phone = _contactValue('phone', fallback: '+989162363723');
+    final github = _contactValue('github', fallback: 'github.com/alisinaee');
+    final linkedIn = _contactValue(
+      'linkedin',
+      fallback: 'linkedin.com/in/alisinaee',
+    );
+    final email = _contactValue('email', fallback: 'alisinaiasl@gmail.com');
+
+    return [
+      portfolioSnapshot.fullName.toUpperCase(),
+      portfolioSnapshot.headline.toUpperCase(),
+      portfolioSnapshot.location.toUpperCase(),
+      'STACK • DART • FLUTTER',
+      'STACK • CLEAN ARCHITECTURE • BLOC • GETX • RIVERPOD',
+      'PHONE • ${phone.toUpperCase()}',
+      'GITHUB • ${github.toUpperCase()}',
+      'LINKEDIN • ${linkedIn.toUpperCase()}',
+      'EMAIL • ${email.toUpperCase()}',
+      'MOBILE APP ENGINEERING • ANDROID • IOS • WEB',
+    ];
+  }
 
   static const List<String> _animatedMenuItems = [
     'EXPERIENCE',
     'ABOUT',
     'SKILLS',
     'CONTACT',
-    'CLOSE',
   ];
 
   static const Map<String, PortfolioSectionId> _animatedMenuToSection = {
@@ -95,7 +101,134 @@ class _PortfolioAppState extends State<PortfolioApp>
 
   double get _menuProgress => _menuMorphCurve.value;
   bool get _isAnimatedMenuOpen => _menuMorphController.value > 0.001;
-  bool get _isAnimatedMenuInteractive => _menuProgress >= 0.75;
+  bool get _isAnimatedMenuInteractive =>
+      _animatedSceneState == KineticSceneState.menu && _menuProgress >= 0.75;
+
+  KineticSceneState get _animatedSceneState {
+    if (_animatedActiveSection != null) {
+      return KineticSceneState.overlay;
+    }
+
+    if (_menuProgress >= 0.02) {
+      return KineticSceneState.menu;
+    }
+
+    return KineticSceneState.landing;
+  }
+
+  String _contactValue(String label, {required String fallback}) {
+    for (final link in portfolioSnapshot.contactLinks) {
+      if (link.label.toLowerCase() == label.toLowerCase()) {
+        return link.value;
+      }
+    }
+    return fallback;
+  }
+
+  List<String> _buildLandingRows(int rowCount) {
+    final seed = _landingInfoSeed;
+    if (seed.isEmpty) {
+      return List<String>.filled(
+        rowCount,
+        portfolioSnapshot.fullName.toUpperCase(),
+      );
+    }
+
+    return List<String>.generate(
+      rowCount,
+      (index) => seed[index % seed.length],
+    );
+  }
+
+  KineticLayoutConfig _resolveKineticLayout(Size viewportSize) {
+    final width = viewportSize.width;
+    final height = viewportSize.height;
+
+    final KineticWidthTier widthTier;
+    final int baseRows;
+    final int baseMovingRows;
+    final int minRows;
+    final int maxRows;
+    final double baseSmallFont;
+    final double baseLargeFont;
+    final double menuTargetFont;
+    final double baseRowPadding;
+    final double expandedMenuRowPadding;
+    final double menuHorizontalPadding;
+
+    if (width < 600) {
+      widthTier = KineticWidthTier.mobile;
+      baseRows = 11;
+      baseMovingRows = 6;
+      minRows = 9;
+      maxRows = 13;
+      baseSmallFont = 18;
+      baseLargeFont = 30;
+      menuTargetFont = 40;
+      baseRowPadding = 8;
+      expandedMenuRowPadding = 14;
+      menuHorizontalPadding = 14;
+    } else if (width < 1100) {
+      widthTier = KineticWidthTier.tablet;
+      baseRows = 15;
+      baseMovingRows = 8;
+      minRows = 13;
+      maxRows = 17;
+      baseSmallFont = 20;
+      baseLargeFont = 34;
+      menuTargetFont = 46;
+      baseRowPadding = 10;
+      expandedMenuRowPadding = 16;
+      menuHorizontalPadding = 18;
+    } else {
+      widthTier = KineticWidthTier.desktop;
+      baseRows = 19;
+      baseMovingRows = 10;
+      minRows = 17;
+      maxRows = 21;
+      baseSmallFont = 22;
+      baseLargeFont = 40;
+      menuTargetFont = 56;
+      baseRowPadding = 12;
+      expandedMenuRowPadding = 20;
+      menuHorizontalPadding = 20;
+    }
+
+    var heightAdjustment = 0;
+    if (height < 640) {
+      heightAdjustment = -2;
+    } else if (height < 760) {
+      heightAdjustment = -1;
+    } else if (height > 1080) {
+      heightAdjustment = 2;
+    } else if (height > 920) {
+      heightAdjustment = 1;
+    }
+
+    var rowCount = (baseRows + heightAdjustment).clamp(minRows, maxRows);
+    if (rowCount.isEven) {
+      rowCount += rowCount < maxRows ? 1 : -1;
+    }
+
+    var movingRows = (baseMovingRows + heightAdjustment).clamp(4, rowCount - 1);
+    if (movingRows.isOdd) {
+      movingRows += movingRows < rowCount - 1 ? 1 : -1;
+    }
+    movingRows = movingRows.clamp(4, rowCount - 1);
+
+    return KineticLayoutConfig(
+      widthTier: widthTier,
+      rowCount: rowCount,
+      movingCenterRowCount: movingRows,
+      baseSmallFontSize: baseSmallFont,
+      baseLargeFontSize: baseLargeFont,
+      menuTargetFontSize: menuTargetFont,
+      baseRowPadding: baseRowPadding,
+      expandedMenuRowPadding: expandedMenuRowPadding,
+      menuHorizontalPadding: menuHorizontalPadding,
+      speedPixelsPerSecond: 45,
+    );
+  }
 
   void _setMode(_PortfolioMode mode) {
     if (_mode == mode) {
@@ -142,15 +275,6 @@ class _PortfolioAppState extends State<PortfolioApp>
 
   Future<void> _openAnimatedSectionFromMenu(String label) async {
     if (!_isAnimatedMenuInteractive) {
-      return;
-    }
-
-    if (label == 'CLOSE') {
-      _pendingAnimatedSection = null;
-      if (_menuMorphController.isAnimating) {
-        return;
-      }
-      await _menuMorphController.reverse();
       return;
     }
 
@@ -227,6 +351,8 @@ class _PortfolioAppState extends State<PortfolioApp>
 
   Widget _buildSharedAppBar(BuildContext context) {
     final theme = Theme.of(context);
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = viewportWidth < 760;
     final isFlat = _mode == _PortfolioMode.flat;
     final isMenuOpen = isFlat ? _isFlatMenuOpen : _isAnimatedMenuOpen;
 
@@ -250,6 +376,7 @@ class _PortfolioAppState extends State<PortfolioApp>
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.8,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           OutlinedButton(
@@ -259,8 +386,13 @@ class _PortfolioAppState extends State<PortfolioApp>
               backgroundColor: _mode == _PortfolioMode.animated
                   ? Colors.white.withValues(alpha: 0.08)
                   : Colors.transparent,
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 8 : 14,
+                vertical: 10,
+              ),
+              minimumSize: Size(0, isCompact ? 34 : 40),
             ),
-            child: const Text('ANIMATED'),
+            child: Text(isCompact ? 'ANIM' : 'ANIMATED'),
           ),
           const SizedBox(width: 8),
           OutlinedButton(
@@ -270,8 +402,13 @@ class _PortfolioAppState extends State<PortfolioApp>
               backgroundColor: _mode == _PortfolioMode.flat
                   ? Colors.white.withValues(alpha: 0.08)
                   : Colors.transparent,
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 8 : 14,
+                vertical: 10,
+              ),
+              minimumSize: Size(0, isCompact ? 34 : 40),
             ),
-            child: const Text('FALT VERSION'),
+            child: Text(isCompact ? 'FLAT' : 'FALT VERSION'),
           ),
           const SizedBox(width: 8),
           AnimatedBuilder(
@@ -311,11 +448,19 @@ class _PortfolioAppState extends State<PortfolioApp>
 
   Widget _buildAnimatedMode(BuildContext context) {
     final theme = Theme.of(context);
-    final isBackgroundMode = _animatedActiveSection != null;
 
     return LayoutBuilder(
       key: const Key('animated_mode_content'),
       builder: (context, constraints) {
+        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final layoutConfig = _resolveKineticLayout(viewportSize);
+        final landingRows = _buildLandingRows(layoutConfig.rowCount);
+        final diagonal = math.sqrt(
+          (viewportSize.width * viewportSize.width) +
+              (viewportSize.height * viewportSize.height),
+        );
+        final rotatedExtent = diagonal + 320;
+
         return Stack(
           children: [
             Positioned.fill(
@@ -323,21 +468,30 @@ class _PortfolioAppState extends State<PortfolioApp>
                 child: Transform.rotate(
                   angle: -15 * 3.1415926535 / 180,
                   child: OverflowBox(
-                    maxWidth: constraints.maxWidth * 2 + 1000,
-                    maxHeight: double.infinity,
-                    child: AnimatedBuilder(
-                      animation: _menuMorphController,
-                      builder: (context, _) {
-                        return KineticLandingView(
-                          menuProgress: _menuProgress,
-                          isMenuInteractive:
-                              _isAnimatedMenuInteractive && !isBackgroundMode,
-                          isBackgroundMode: isBackgroundMode,
-                          landingTexts: _landingTexts,
-                          menuItems: _animatedMenuItems,
-                          onMenuItemTap: _openAnimatedSectionFromMenu,
-                        );
-                      },
+                    maxWidth: rotatedExtent,
+                    maxHeight: rotatedExtent,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 160),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: SizedBox(
+                        key: ValueKey(layoutConfig.signature),
+                        width: rotatedExtent,
+                        child: AnimatedBuilder(
+                          animation: _menuMorphController,
+                          builder: (context, _) {
+                            return KineticLandingView(
+                              menuProgress: _menuProgress,
+                              sceneState: _animatedSceneState,
+                              layoutConfig: layoutConfig,
+                              isMenuInteractive: _isAnimatedMenuInteractive,
+                              landingTexts: landingRows,
+                              menuItems: _animatedMenuItems,
+                              onMenuItemTap: _openAnimatedSectionFromMenu,
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
