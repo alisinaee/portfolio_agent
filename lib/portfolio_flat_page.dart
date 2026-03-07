@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'data/portfolio_snapshot.dart';
 import 'models/portfolio_models.dart';
+import 'widgets/compact_header_bar.dart';
 import 'widgets/experience_card.dart';
 import 'widgets/key_value_block.dart';
 import 'widgets/section_container.dart';
@@ -14,20 +15,30 @@ class FlatPortfolioView extends StatefulWidget {
     this.initialSection,
     this.isMenuOpen = false,
     this.onCloseMenu,
+    this.onToggleMenu,
+    this.onSwitchToAnimated,
+    this.onSwitchToFlat,
   });
 
   final PortfolioSectionId? initialSection;
   final bool isMenuOpen;
   final VoidCallback? onCloseMenu;
+  final VoidCallback? onToggleMenu;
+  final VoidCallback? onSwitchToAnimated;
+  final VoidCallback? onSwitchToFlat;
 
   @override
   State<FlatPortfolioView> createState() => _FlatPortfolioViewState();
 }
 
 class _FlatPortfolioViewState extends State<FlatPortfolioView> {
+  static const double _flatExpandedAppBarHeight = 236;
+  static const double _flatToolbarHeight = 72;
+
   final ScrollController _scrollController = ScrollController();
   int? _expandedExperienceIndex;
   PortfolioSectionId _activeSection = PortfolioSectionId.about;
+  bool _showCompactHeader = false;
 
   late final Map<PortfolioSectionId, GlobalKey> _sectionKeys = {
     for (final section in PortfolioSectionId.values) section: GlobalKey(),
@@ -72,7 +83,7 @@ class _FlatPortfolioViewState extends State<FlatPortfolioView> {
 
     await Scrollable.ensureVisible(
       context,
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
       alignment: 0.08,
     );
@@ -96,7 +107,12 @@ class _FlatPortfolioViewState extends State<FlatPortfolioView> {
   }
 
   void _updateActiveSection() {
-    const threshold = 180.0;
+    final collapseThreshold = _flatExpandedAppBarHeight - _flatToolbarHeight;
+    final shouldShowCompact =
+        _scrollController.hasClients &&
+        _scrollController.offset > (collapseThreshold - 12);
+
+    const threshold = 210.0;
     PortfolioSectionId? candidate;
     var bestDistance = double.infinity;
 
@@ -112,7 +128,7 @@ class _FlatPortfolioViewState extends State<FlatPortfolioView> {
       }
 
       final topOffset = renderBox.localToGlobal(Offset.zero).dy;
-      if (topOffset > threshold + 60) {
+      if (topOffset > threshold + 80) {
         continue;
       }
 
@@ -123,70 +139,303 @@ class _FlatPortfolioViewState extends State<FlatPortfolioView> {
       }
     }
 
-    if (candidate != null && candidate != _activeSection && mounted) {
-      setState(() {
-        _activeSection = candidate!;
-      });
+    if (!mounted) {
+      return;
     }
+
+    final shouldUpdateSection =
+        candidate != null && candidate != _activeSection;
+    final shouldUpdateHeader = shouldShowCompact != _showCompactHeader;
+    if (!shouldUpdateSection && !shouldUpdateHeader) {
+      return;
+    }
+
+    setState(() {
+      if (shouldUpdateSection) {
+        _activeSection = candidate!;
+      }
+      if (shouldUpdateHeader) {
+        _showCompactHeader = shouldShowCompact;
+      }
+    });
+  }
+
+  Widget _buildSliverFlexibleBackground(BuildContext context) {
+    final collapseRange = _flatExpandedAppBarHeight - _flatToolbarHeight;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final currentHeight = constraints.biggest.height;
+        final t = ((currentHeight - _flatToolbarHeight) / collapseRange).clamp(
+          0.0,
+          1.0,
+        );
+
+        return Opacity(opacity: t, child: _buildExpandedHeader(context));
+      },
+    );
+  }
+
+  Widget _buildCollapsedHeader(BuildContext context, bool isCompact) {
+    return AnimatedOpacity(
+      opacity: _showCompactHeader ? 1 : 0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: IgnorePointer(
+        ignoring: !_showCompactHeader,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CompactHeaderBar(
+            fullName: portfolioSnapshot.fullName,
+            avatarImageUrl: portfolioSnapshot.avatarImageUrl,
+            isCompact: isCompact,
+            isAnimatedSelected: false,
+            isFlatSelected: true,
+            isMenuOpen: widget.isMenuOpen,
+            onAnimatedTap: () {
+              widget.onSwitchToAnimated?.call();
+            },
+            onFlatTap: () {
+              widget.onSwitchToFlat?.call();
+            },
+            onMenuTap: () {
+              widget.onToggleMenu?.call();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (_scrollController.hasClients && _scrollController.offset <= 1) {
+        setState(() {
+          _showCompactHeader = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant FlatPortfolioView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isMenuOpen != widget.isMenuOpen && mounted) {
+      if (widget.isMenuOpen && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      setState(() {});
+    }
+  }
+
+  Widget _buildExpandedHeader(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      key: const Key('flat_expanded_header'),
+      color: Colors.black.withValues(alpha: 0.50),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ClipRect(
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton(
+                            onPressed: widget.onSwitchToAnimated,
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              minimumSize: const Size(0, 40),
+                            ),
+                            child: const Text('ANIM'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: widget.onSwitchToFlat,
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.08,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              minimumSize: const Size(0, 40),
+                            ),
+                            child: const Text('FLAT'),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            iconSize: 34,
+                            icon: Icon(
+                              widget.isMenuOpen ? Icons.close : Icons.menu,
+                              color: Colors.white,
+                            ),
+                            onPressed: widget.onToggleMenu,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        PortfolioAvatar(
+                          key: const Key('flat_expanded_avatar'),
+                          fullName: portfolioSnapshot.fullName,
+                          imageUrl: portfolioSnapshot.avatarImageUrl,
+                          radius: 46,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                portfolioSnapshot.fullName,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                portfolioSnapshot.headline,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.86),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                portfolioSnapshot.location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  letterSpacing: 0.6,
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'MENU',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        letterSpacing: 1.4,
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      key: const Key('flat_view'),
-      children: [
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = viewportWidth < 760;
+
+    return CustomScrollView(
+      key: const Key('portfolio_scroll_view'),
+      controller: _scrollController,
+      slivers: [
+        SliverAppBar(
+          key: const Key('flat_sliver_app_bar'),
+          pinned: true,
+          floating: false,
+          expandedHeight: _flatExpandedAppBarHeight,
+          toolbarHeight: _flatToolbarHeight,
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
+          backgroundColor: Colors.black,
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: FlexibleSpaceBar(
+            collapseMode: CollapseMode.pin,
+            background: _buildSliverFlexibleBackground(context),
+          ),
+          title: _buildCollapsedHeader(context, isCompact),
+        ),
         if (widget.isMenuOpen)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: SizedBox(
-              key: const Key('flat_section_menu'),
-              width: double.infinity,
-              child: SectionNavBar(
-                labels: _sectionLabels,
-                activeSection: _activeSection,
-                onTap: (section) {
-                  _scrollToSection(section);
-                  widget.onCloseMenu?.call();
-                },
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SizedBox(
+                key: const Key('flat_section_menu'),
+                width: double.infinity,
+                child: SectionNavBar(
+                  labels: _sectionLabels,
+                  activeSection: _activeSection,
+                  onTap: (section) {
+                    _scrollToSection(section);
+                    widget.onCloseMenu?.call();
+                  },
+                ),
               ),
             ),
           ),
-        Expanded(
-          child: CustomScrollView(
-            key: const Key('portfolio_scroll_view'),
-            controller: _scrollController,
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                sliver: SliverToBoxAdapter(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1100),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildHeroSection(context),
-                          const SizedBox(height: 14),
-                          _buildAboutSection(),
-                          const SizedBox(height: 14),
-                          _buildContactSection(),
-                          const SizedBox(height: 14),
-                          _buildExperienceSection(),
-                          const SizedBox(height: 14),
-                          _buildSkillsSection(),
-                          const SizedBox(height: 14),
-                          _buildAchievementsSection(),
-                          const SizedBox(height: 14),
-                          _buildPackagesSection(),
-                          const SizedBox(height: 14),
-                          _buildCurrentFocusSection(),
-                        ],
-                      ),
-                    ),
-                  ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeroSection(context),
+                    const SizedBox(height: 14),
+                    _buildAboutSection(),
+                    const SizedBox(height: 14),
+                    _buildContactSection(),
+                    const SizedBox(height: 14),
+                    _buildExperienceSection(),
+                    const SizedBox(height: 14),
+                    _buildSkillsSection(),
+                    const SizedBox(height: 14),
+                    _buildAchievementsSection(),
+                    const SizedBox(height: 14),
+                    _buildPackagesSection(),
+                    const SizedBox(height: 14),
+                    _buildCurrentFocusSection(),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ],

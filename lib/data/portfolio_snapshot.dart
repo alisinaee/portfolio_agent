@@ -7,6 +7,8 @@ const portfolioSnapshot = PortfolioSnapshot(
   fullName: 'Ali Sinaee',
   headline: 'Senior Flutter Expert & Mobile App Developer',
   location: 'Tehran, Iran',
+  avatarImageUrl:
+      'https://avatars.githubusercontent.com/u/38153222?s=400&u=d18ed5e2ac293ec31421fb90d061c5671067351c&v=4',
   resumeUrl: 'https://github.com/alisinaee/alisinaee/raw/main/AliSinaee.pdf',
   heroLinks: [
     ContactLink(

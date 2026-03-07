@@ -16,6 +16,7 @@ class PortfolioSnapshot {
     required this.fullName,
     required this.headline,
     required this.location,
+    required this.avatarImageUrl,
     required this.resumeUrl,
     required this.heroLinks,
     required this.profile,
@@ -30,6 +31,7 @@ class PortfolioSnapshot {
   final String fullName;
   final String headline;
   final String location;
+  final String avatarImageUrl;
   final String resumeUrl;
   final List<ContactLink> heroLinks;
   final ProfileInfo profile;

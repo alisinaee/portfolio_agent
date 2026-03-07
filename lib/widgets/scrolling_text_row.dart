@@ -1,10 +1,13 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
 enum RowMotionMode { marquee, staticHold }
 
 enum RowTextPresentationMode { marqueeBlend, centeredBlend }
+
+enum RowLoopMode { pingPong, forwardLoop }
 
 class ScrollingTextRow extends StatefulWidget {
   const ScrollingTextRow({
@@ -18,10 +21,16 @@ class ScrollingTextRow extends StatefulWidget {
     this.dimOpacity = 0.15,
     this.speedPixelsPerSecond = 52.0,
     this.motionMode = RowMotionMode.marquee,
+    this.motionBlend = 1.0,
+    this.loopMode = RowLoopMode.pingPong,
+    this.phaseOffset = 0.0,
+    this.syncProgress,
     this.textScale = 1.0,
     this.verticalPadding = 24.0,
     this.textPresentationMode = RowTextPresentationMode.marqueeBlend,
     this.centeredHorizontalPadding = 16.0,
+    this.dividerColor = const Color(0xFF5A5E66),
+    this.baseTextStyle,
   });
 
   final String primaryText;
@@ -33,10 +42,16 @@ class ScrollingTextRow extends StatefulWidget {
   final double dimOpacity;
   final double speedPixelsPerSecond;
   final RowMotionMode motionMode;
+  final double motionBlend;
+  final RowLoopMode loopMode;
+  final double phaseOffset;
+  final double? syncProgress;
   final double textScale;
   final double verticalPadding;
   final RowTextPresentationMode textPresentationMode;
   final double centeredHorizontalPadding;
+  final Color dividerColor;
+  final TextStyle? baseTextStyle;
 
   @override
   State<ScrollingTextRow> createState() => _ScrollingTextRowState();
@@ -66,7 +81,7 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
       duration: const Duration(seconds: 4),
     );
     _updateTextMetrics();
-    _syncAnimationState();
+    _syncAnimationState(restart: true);
   }
 
   @override
@@ -77,21 +92,35 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
         oldWidget.secondaryText != widget.secondaryText ||
         oldWidget.fontSize != widget.fontSize ||
         oldWidget.speedPixelsPerSecond != widget.speedPixelsPerSecond ||
-        oldWidget.textPresentationMode != widget.textPresentationMode) {
+        oldWidget.textPresentationMode != widget.textPresentationMode ||
+        oldWidget.baseTextStyle != widget.baseTextStyle) {
       _updateTextMetrics();
     }
 
-    if (oldWidget.motionMode != widget.motionMode) {
-      _syncAnimationState();
+    final needsRestart =
+        oldWidget.loopMode != widget.loopMode ||
+        oldWidget.phaseOffset != widget.phaseOffset ||
+        (oldWidget.syncProgress == null) != (widget.syncProgress == null);
+
+    if (oldWidget.motionMode != widget.motionMode || needsRestart) {
+      _syncAnimationState(restart: needsRestart);
     }
   }
 
   TextStyle _textStyle() {
-    return TextStyle(
+    final seed =
+        widget.baseTextStyle ??
+        const TextStyle(
+          fontWeight: FontWeight.w900,
+          letterSpacing: 8,
+          color: Colors.white,
+        );
+
+    return seed.copyWith(
       fontSize: widget.fontSize,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 8,
-      color: Colors.white,
+      fontWeight: seed.fontWeight ?? FontWeight.w900,
+      letterSpacing: seed.letterSpacing ?? 8,
+      color: seed.color ?? Colors.white,
     );
   }
 
@@ -105,16 +134,22 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     return math.max(1.0, textPainter.size.width);
   }
 
-  void _syncAnimationState() {
-    if (widget.motionMode == RowMotionMode.staticHold) {
+  void _syncAnimationState({bool restart = false}) {
+    if (widget.motionMode == RowMotionMode.staticHold ||
+        widget.syncProgress != null) {
       if (_controller.isAnimating) {
         _controller.stop(canceled: false);
       }
       return;
     }
 
-    if (!_controller.isAnimating) {
-      _controller.repeat();
+    final phase = widget.phaseOffset.remainder(1.0);
+
+    if (restart || !_controller.isAnimating) {
+      _controller
+        ..stop(canceled: false)
+        ..value = phase;
+      _controller.repeat(reverse: widget.loopMode == RowLoopMode.pingPong);
     }
   }
 
@@ -152,8 +187,8 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
 
   String _buildPrimaryMarqueeText(double viewportWidth, double segmentWidth) {
     final repeatCount = math.max(
-      2,
-      ((viewportWidth + segmentWidth) / segmentWidth).ceil() + 1,
+      3,
+      ((viewportWidth + (segmentWidth * 2)) / segmentWidth).ceil() + 2,
     );
 
     if (repeatCount != _primaryCachedRepeatCount) {
@@ -173,8 +208,8 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     }
 
     final repeatCount = math.max(
-      2,
-      ((viewportWidth + segmentWidth) / segmentWidth).ceil() + 1,
+      3,
+      ((viewportWidth + (segmentWidth * 2)) / segmentWidth).ceil() + 2,
     );
 
     if (repeatCount != _secondaryCachedRepeatCount) {
@@ -308,16 +343,19 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
     final rowOpacity = widget.isDimmed
         ? widget.dimOpacity.clamp(0.0, 1.0)
         : 1.0;
+    final motionBlend = widget.motionBlend.clamp(0.0, 1.0);
 
     return Opacity(
       opacity: rowOpacity,
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.white, width: 1)),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: widget.dividerColor, width: 1),
+          ),
         ),
         padding: EdgeInsets.symmetric(
-          vertical: widget.verticalPadding.clamp(8.0, 80.0),
+          vertical: widget.verticalPadding.clamp(2.0, 80.0),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -376,12 +414,20 @@ class _ScrollingTextRowState extends State<ScrollingTextRow>
               textLayer = AnimatedBuilder(
                 animation: _controller,
                 builder: (context, child) {
-                  final offset = widget.moveLeft
-                      ? -(_controller.value * activeSegmentWidth)
-                      : ((_controller.value - 1) * activeSegmentWidth);
-                  return Transform.translate(
-                    offset: Offset(offset, 0),
-                    child: child,
+                  final progress = (widget.syncProgress ?? _controller.value)
+                      .clamp(0.0, 1.0);
+                  final rawOffset = widget.moveLeft
+                      ? -(progress * activeSegmentWidth)
+                      : -((1.0 - progress) * activeSegmentWidth);
+                  final blendedOffset = lerpDouble(0, rawOffset, motionBlend)!;
+                  final blendedOpacity = lerpDouble(0.35, 1.0, motionBlend)!;
+
+                  return Opacity(
+                    opacity: blendedOpacity,
+                    child: Transform.translate(
+                      offset: Offset(blendedOffset, 0),
+                      child: child,
+                    ),
                   );
                 },
                 child: textLayer,

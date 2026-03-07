@@ -20,6 +20,12 @@
 - Use one Markdown rules file and evolve it from user behavior instructions.
 
 ## Recent Changes (Last 20)
+### 2026-02-27T19:34:03+03:30
+- Changed files: `docs/README.md`, `docs/project-overview.md`, `docs/architecture.md`, `docs/agent-workflows.md`, `docs/best-practices.md`, `docs/prohibited.md`, `docs/testing-validation.md`
+- Summary: Created strict multi-file AI agent documentation suite under docs with architecture, workflows, best practices, prohibited actions, and validation guidance while preserving auto-doc format.
+- Behavior impact: Recorded code-level deltas for future AI context.
+<!-- fingerprint:5d5935d22e3e -->
+
 ### 2026-02-27T19:04:07+03:30
 - Changed files: `.agents/skills/auto-docs/agents/openai.yaml`, `.agents/skills/auto-docs/agents/interface.yaml`, `.agents/skills/auto-docs/assets/auto-docs-small.png`, `.agents/skills/auto-docs/SKILL.md`
 - Summary: Fixed Auto Docs icon rendering by switching to PNG icons and added interface metadata compatibility; installed skill globally in ~/.codex/skills/auto-docs.
@@ -39,4 +45,4 @@
 <!-- fingerprint:754c92d74f23 -->
 
 ## Last Updated
-- 2026-02-27T19:04:07+03:30
+- 2026-02-27T19:34:03+03:30
